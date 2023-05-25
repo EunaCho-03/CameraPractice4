@@ -6,6 +6,42 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.Manifest;
+import android.content.ContentValues;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.view.View;
+import android.widget.ImageButton;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.video.MediaStoreOutputOptions;
+import androidx.camera.video.Quality;
+import androidx.camera.video.QualitySelector;
+import androidx.camera.video.Recorder;
+import androidx.camera.video.Recording;
+import androidx.camera.video.VideoCapture;
+import androidx.camera.video.VideoRecordEvent;
+import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.google.common.util.concurrent.ListenableFuture;
+
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -40,6 +76,26 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.video.MediaStoreOutputOptions;
+import androidx.camera.video.Quality;
+import androidx.camera.video.QualitySelector;
+import androidx.camera.video.Recorder;
+import androidx.camera.video.Recording;
+import androidx.camera.video.VideoCapture;
+import androidx.camera.video.VideoRecordEvent;
+import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.google.common.util.concurrent.ListenableFuture;
+
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -47,9 +103,14 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 
 
@@ -59,19 +120,35 @@ public class MainActivity extends AppCompatActivity {
     Button startButton;
     Button stopButton;
     Button captureButton;
-
+    private static final int REQUEST_CODE = 1;
     Button reverseButton;
+    Button recordButton;
     ImageView imageView;
     String TAG = "MainActivity";
     String mCurrentPhotoPath;
     ProcessCameraProvider processCameraProvider;
-    //int lensFacing = CameraSelector.LENS_FACING_FRONT;
-    int lensFacing = CameraSelector.LENS_FACING_BACK;
+    int cameraFacing = CameraSelector.LENS_FACING_BACK;
     ImageCapture imageCapture;
+    VideoCapture<Recorder> videoCapture = null;
+    Recording recording = null;
     Bitmap bitmap = null;
+
+    private final ActivityResultLauncher<String> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), result -> {
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            startCamera(cameraFacing);
+        }
+    });
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        Log.e("TEST", "onActivityResult");
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        Log.e("TEST", "TESTLOG 1 lensFacing "+cameraFacing);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -80,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
         stopButton = findViewById(R.id.stopButton);
         captureButton = findViewById(R.id.captureButton);
         reverseButton = findViewById(R.id.reverseButton);
+        recordButton = findViewById(R.id.recordButton);
         imageView = findViewById(R.id.imageView);
 
 
@@ -119,22 +197,34 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
-
+*/
         reverseButton.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View v){
-                Intent intent = new Intent(getApplicationContext(), FrontActivity.class);
-                startActivity(intent);
+               // Log.e("TEST", "TESTLOG 1 lensFacing "+lensFacing);
+                if(cameraFacing == CameraSelector.LENS_FACING_BACK){
+                    cameraFacing = CameraSelector.LENS_FACING_FRONT;
+                }
+                else{
+                    cameraFacing = CameraSelector.LENS_FACING_BACK;
+                }
+
+               // Log.e("TEST", "TESTLOG 2 lensFacing "+lensFacing);
+                processCameraProvider.unbindAll();
+                bindPreview();
+                bindImageCapture();
+                //Intent intent = new Intent(getApplicationContext(), FrontActivity.class);
+                //startActivity(intent);
             }
         });
 
-*/
         captureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String filename = "photo.JPG";
-                saveFile(filename);
+                //String filename = "photo.JPG";
+                //saveFile(filename);
 
+                saveImage();
                 imageCapture.takePicture(ContextCompat.getMainExecutor(MainActivity.this),
                         new ImageCapture.OnImageCapturedCallback() {
                             @Override
@@ -157,22 +247,122 @@ public class MainActivity extends AppCompatActivity {
                                 imageView.setImageBitmap(rotatedBitmap);
 
                                 super.onCaptureSuccess(image);
-                                String filename = "photo.JPG";
-                                saveFile(filename);
-
+                                //String filename = "photo.JPG";
+                                //saveFile(filename);
+                                saveImage();
 
                             }
                         }
                 );
             }
         });
+
+        recordButton.setOnClickListener(view -> {
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                activityResultLauncher.launch(Manifest.permission.CAMERA);
+            } else if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                activityResultLauncher.launch(Manifest.permission.RECORD_AUDIO);
+            } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P && ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                activityResultLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            } else {
+                captureVideo();
+            }
+        });
+
+    }
+
+    public void captureVideo(){
+        //capture.setImageResource(R.drawable.round_stop_circle_24);
+        Recording recording1 = recording;
+        if (recording1 != null) {
+            recording1.stop();
+            recording = null;
+            return;
+        }
+        String name = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.getDefault()).format(System.currentTimeMillis());
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        contentValues.put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CameraX-Video");
+
+        MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+                .setContentValues(contentValues).build();
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        recording = videoCapture.getOutput().prepareRecording(MainActivity.this, options).withAudioEnabled().start(ContextCompat.getMainExecutor(MainActivity.this), videoRecordEvent -> {
+            if (videoRecordEvent instanceof VideoRecordEvent.Start) {
+                recordButton.setEnabled(true);
+            } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
+                if (!((VideoRecordEvent.Finalize) videoRecordEvent).hasError()) {
+                    String msg = "Video capture succeeded: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getOutputResults().getOutputUri();
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                } else {
+                    recording.close();
+                    recording = null;
+                    String msg = "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError();
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                }
+                //recordButton.setImageResource(R.drawable.round_fiber_manual_record_24);
+            }
+        });
+    }
+
+    public void startCamera(int cameraFacing) {
+        ListenableFuture<ProcessCameraProvider> processCameraProvider = ProcessCameraProvider.getInstance(MainActivity.this);
+
+        processCameraProvider.addListener(() -> {
+            try {
+                ProcessCameraProvider cameraProvider = processCameraProvider.get();
+                Preview preview = new Preview.Builder().build();
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+
+                Recorder recorder = new Recorder.Builder()
+                        .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
+                        .build();
+                videoCapture = VideoCapture.withOutput(recorder);
+
+                cameraProvider.unbindAll();
+
+                CameraSelector cameraSelector = new CameraSelector.Builder()
+                        .requireLensFacing(cameraFacing).build();
+
+                Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture);
+
+             //   toggleFlash.setOnClickListener(view -> toggleFlash(camera));
+            } catch (ExecutionException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, ContextCompat.getMainExecutor(MainActivity.this));
     }
 
 
 
-    private void saveFile(String filename)
-    {
+    private void saveImage() {
+        Uri images;
+        ContentResolver contentResolver = getContentResolver();
+        images = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
 
+        ContentValues contentValues = new ContentValues(0);
+        contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, System.currentTimeMillis()+ ".JPG");
+        contentValues.put(MediaStore.Images.Media.MIME_TYPE, "images/");
+        Uri uri = contentResolver.insert(images, contentValues);
+
+        try{
+            BitmapDrawable bitmapDrawable = (BitmapDrawable) imageView.getDrawable();
+            Bitmap bitmap = bitmapDrawable.getBitmap();
+
+            OutputStream outputStream = contentResolver.openOutputStream(Objects.requireNonNull(uri));
+            bitmap.compress(Bitmap.CompressFormat.JPEG,100, outputStream);
+            Objects.requireNonNull(outputStream);
+            Toast.makeText(getApplicationContext(), "갤러리에 저장 성공", Toast.LENGTH_LONG).show();
+
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
+/*
         if(bitmap == null)
         {
             Toast.makeText(getApplicationContext(), "먼저 촬영을 하세요", Toast.LENGTH_LONG).show();
@@ -230,7 +420,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(getApplicationContext(), e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
-
+*/
 
 
     public byte[] bitmapToByteArray(Bitmap $bitmap){
@@ -244,7 +434,7 @@ public class MainActivity extends AppCompatActivity {
     void bindPreview() {
         previewView.setScaleType(PreviewView.ScaleType.FIT_CENTER);
         CameraSelector cameraSelector = new CameraSelector.Builder()
-                .requireLensFacing(lensFacing)
+                .requireLensFacing(cameraFacing)
                 .build();
         Preview preview = new Preview.Builder()
                 .setTargetAspectRatio(AspectRatio.RATIO_4_3) //디폴트 표준 비율
@@ -256,7 +446,7 @@ public class MainActivity extends AppCompatActivity {
 
     void bindImageCapture() {
         CameraSelector cameraSelector = new CameraSelector.Builder()
-                .requireLensFacing(lensFacing)
+                .requireLensFacing(cameraFacing)
                 .build();
         imageCapture = new ImageCapture.Builder()
                 .build();
