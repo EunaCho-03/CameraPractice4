@@ -123,6 +123,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE = 1;
     Button reverseButton;
     Button recordButton;
+    Button capture;
     ImageView imageView;
     String TAG = "MainActivity";
     String mCurrentPhotoPath;
@@ -159,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
         reverseButton = findViewById(R.id.reverseButton);
         recordButton = findViewById(R.id.recordButton);
         imageView = findViewById(R.id.imageView);
+
 
 
         ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.CAMERA}, 1);
@@ -225,6 +227,7 @@ public class MainActivity extends AppCompatActivity {
                 //saveFile(filename);
 
                 saveImage();
+
                 imageCapture.takePicture(ContextCompat.getMainExecutor(MainActivity.this),
                         new ImageCapture.OnImageCapturedCallback() {
                             @Override
@@ -254,6 +257,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                 );
+
+
             }
         });
 
@@ -272,7 +277,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void captureVideo(){
-        //capture.setImageResource(R.drawable.round_stop_circle_24);
+
+        //recordButton.setImageResource(R.drawable.round_stop_circle_24);
         Recording recording1 = recording;
         if (recording1 != null) {
             recording1.stop();
@@ -304,7 +310,7 @@ public class MainActivity extends AppCompatActivity {
                     String msg = "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError();
                     Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
                 }
-                //recordButton.setImageResource(R.drawable.round_fiber_manual_record_24);
+               // recordButton.setImageResource(R.drawable.round_fiber_manual_record_24);
             }
         });
     }
