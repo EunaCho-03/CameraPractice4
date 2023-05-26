@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+
+<!--
+LinearLayout: 객체를 만들면 겹치지 않고 수평/수직으로 나열됨
+FrameLayout: 객체가 왼쪽 위에서 모두 겹침
+RelativeLayout: 다른 객체를 기준으로 위치, 방향 조절
+-->
+
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"

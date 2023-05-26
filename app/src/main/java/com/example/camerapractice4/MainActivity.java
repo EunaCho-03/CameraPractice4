@@ -21,9 +21,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.video.MediaStoreOutputOptions;
+import androidx.camera.video.PendingRecording;
 import androidx.camera.video.Quality;
 import androidx.camera.video.QualitySelector;
 import androidx.camera.video.Recorder;
@@ -93,6 +95,7 @@ import androidx.camera.video.VideoRecordEvent;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.util.Consumer;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -114,24 +117,26 @@ import java.util.concurrent.Executors;
 
 
 
-public class MainActivity extends AppCompatActivity {
-    PreviewView previewView;
-    private String imageFilePath;
+public class MainActivity extends AppCompatActivity { // 하위버전 단말기에 실행 안되는 메소드를 지원하기 위해 AppCompatActivity를 extend함
+    PreviewView previewView; // 카메라에 비치는 화면의 역할
+    //private String imageFilePath;
     Button startButton;
     Button stopButton;
     Button captureButton;
     private static final int REQUEST_CODE = 1;
     Button reverseButton;
     Button recordButton;
-    ImageView imageView;
-    String TAG = "MainActivity";
-    String mCurrentPhotoPath;
+    Button capture;
+    ImageView imageView; /// 이미지를 화면에 띄우기 위해
+    //String TAG = "MainActivity";
+    //String mCurrentPhotoPath;
     ProcessCameraProvider processCameraProvider;
     int cameraFacing = CameraSelector.LENS_FACING_BACK;
     ImageCapture imageCapture;
     VideoCapture<Recorder> videoCapture = null;
     Recording recording = null;
-    Bitmap bitmap = null;
+    Bitmap bitmap = null; //bitmap = 이미지를 표현하기 위해 사용되는 객체(픽셀)
+
 
     private final ActivityResultLauncher<String> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), result -> {
         if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -161,23 +166,27 @@ public class MainActivity extends AppCompatActivity {
         imageView = findViewById(R.id.imageView);
 
 
+
         ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.CAMERA}, 1);
 
-        try {
-            processCameraProvider = ProcessCameraProvider.getInstance(this).get();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
+//        try {
+//            processCameraProvider = ProcessCameraProvider.getInstance(this).get();
+//        } catch (ExecutionException e) {
+//            e.printStackTrace();
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
 
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.e("TEST", "startButton onClick called");
                 if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    Log.e("TEST", "startButton onClick permission granted");
+                    processCameraProvider.unbindAll();
                     bindPreview();
                     bindImageCapture();
+                    bindVideoCapture();
                 }
             }
         });
@@ -201,7 +210,6 @@ public class MainActivity extends AppCompatActivity {
         reverseButton.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View v){
-               // Log.e("TEST", "TESTLOG 1 lensFacing "+lensFacing);
                 if(cameraFacing == CameraSelector.LENS_FACING_BACK){
                     cameraFacing = CameraSelector.LENS_FACING_FRONT;
                 }
@@ -209,7 +217,6 @@ public class MainActivity extends AppCompatActivity {
                     cameraFacing = CameraSelector.LENS_FACING_BACK;
                 }
 
-               // Log.e("TEST", "TESTLOG 2 lensFacing "+lensFacing);
                 processCameraProvider.unbindAll();
                 bindPreview();
                 bindImageCapture();
@@ -224,11 +231,15 @@ public class MainActivity extends AppCompatActivity {
                 //String filename = "photo.JPG";
                 //saveFile(filename);
 
-                saveImage();
+//                saveImage();
+
+                Log.e("TEST", "captureButton onClick called");
+
                 imageCapture.takePicture(ContextCompat.getMainExecutor(MainActivity.this),
                         new ImageCapture.OnImageCapturedCallback() {
                             @Override
                             public void onCaptureSuccess(@NonNull ImageProxy image) {
+                                Log.e("TEST", "takePicture onCaptureSuccess");
 
                                 @SuppressLint({"UnsafeExperimentalUsageError", "UnsafeOptInUsageError"})
                                 Image mediaImage = image.getImage();
@@ -252,12 +263,23 @@ public class MainActivity extends AppCompatActivity {
                                 saveImage();
 
                             }
+
+                            @Override
+                            public void onError(@NonNull ImageCaptureException exception) {
+                                super.onError(exception);
+                                exception.printStackTrace();
+                            }
+
+
                         }
                 );
+
+
             }
         });
 
         recordButton.setOnClickListener(view -> {
+            Log.e("TEST", "recordButton onClick");
             if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 activityResultLauncher.launch(Manifest.permission.CAMERA);
             } else if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -265,16 +287,43 @@ public class MainActivity extends AppCompatActivity {
             } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P && ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 activityResultLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             } else {
+                Log.e("TEST", "recordButton onClick permission granted. Moving to function captureVideo");
                 captureVideo();
             }
         });
 
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            activityResultLauncher.launch(Manifest.permission.CAMERA);
+        } else {
+            startCamera(cameraFacing);
+        }
     }
 
+/*
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if(startButton != null) {
+            startButton.performClick();
+
+        }
+    }
+*/
     public void captureVideo(){
-        //capture.setImageResource(R.drawable.round_stop_circle_24);
+        Log.e("TEST", "captureVideo called");
+        if(videoCapture == null)
+        {
+            Log.e("TEST", "videoCapture null");
+            Recorder recorder = new Recorder.Builder()
+                    .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
+                    .build();
+            videoCapture = VideoCapture.withOutput(recorder);
+        }
+
+        //recordButton.setImageResource(R.drawable.round_stop_circle_24);
         Recording recording1 = recording;
         if (recording1 != null) {
+            Log.e("TEST", "recording1 not null");
             recording1.stop();
             recording = null;
             return;
@@ -291,30 +340,45 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-        recording = videoCapture.getOutput().prepareRecording(MainActivity.this, options).withAudioEnabled().start(ContextCompat.getMainExecutor(MainActivity.this), videoRecordEvent -> {
-            if (videoRecordEvent instanceof VideoRecordEvent.Start) {
-                recordButton.setEnabled(true);
-            } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
-                if (!((VideoRecordEvent.Finalize) videoRecordEvent).hasError()) {
-                    String msg = "Video capture succeeded: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getOutputResults().getOutputUri();
-                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-                } else {
-                    recording.close();
-                    recording = null;
-                    String msg = "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError();
-                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+
+        PendingRecording prepareRecording = videoCapture.getOutput().prepareRecording(MainActivity.this, options);
+        PendingRecording withAudioEnabled = prepareRecording.withAudioEnabled();
+
+        recording = withAudioEnabled.start(ContextCompat.getMainExecutor(MainActivity.this), new Consumer<VideoRecordEvent>() {
+            @Override
+            public void accept(VideoRecordEvent videoRecordEvent) {
+                Log.e("TEST", "Record prepare");
+
+                if (videoRecordEvent instanceof VideoRecordEvent.Start) {
+                    recordButton.setEnabled(true);
+                    Log.e("TEST", "Record start");
+
+                } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
+                    if (!((VideoRecordEvent.Finalize) videoRecordEvent).hasError()) {
+                        Log.e("TEST", "Record complete");
+                        String msg = "Video capture succeeded: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getOutputResults().getOutputUri();
+                        Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
+                    } else {
+                        if (recording != null)
+                            recording.close();
+                        recording = null;
+                        String msg = "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError();
+                        Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
+                    }
                 }
-                //recordButton.setImageResource(R.drawable.round_fiber_manual_record_24);
             }
         });
     }
 
     public void startCamera(int cameraFacing) {
-        ListenableFuture<ProcessCameraProvider> processCameraProvider = ProcessCameraProvider.getInstance(MainActivity.this);
+        ListenableFuture<ProcessCameraProvider> future_processCameraProvider = ProcessCameraProvider.getInstance(MainActivity.this);
 
-        processCameraProvider.addListener(() -> {
+        future_processCameraProvider.addListener(() -> {
             try {
-                ProcessCameraProvider cameraProvider = processCameraProvider.get();
+                processCameraProvider = future_processCameraProvider.get();
+
+                processCameraProvider.unbindAll();
+
                 Preview preview = new Preview.Builder().build();
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
@@ -323,14 +387,16 @@ public class MainActivity extends AppCompatActivity {
                         .build();
                 videoCapture = VideoCapture.withOutput(recorder);
 
-                cameraProvider.unbindAll();
 
                 CameraSelector cameraSelector = new CameraSelector.Builder()
                         .requireLensFacing(cameraFacing).build();
 
-                Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture);
+                imageCapture = new ImageCapture.Builder()
+                        .build();
 
-             //   toggleFlash.setOnClickListener(view -> toggleFlash(camera));
+                processCameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture, imageCapture);
+
+                //   toggleFlash.setOnClickListener(view -> toggleFlash(camera));
             } catch (ExecutionException | InterruptedException e) {
                 e.printStackTrace();
             }
@@ -442,6 +508,7 @@ public class MainActivity extends AppCompatActivity {
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
         processCameraProvider.bindToLifecycle(this, cameraSelector, preview);
+        Log.e("TEST", "bindPreview SUCC");
     }
 
     void bindImageCapture() {
@@ -452,11 +519,26 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         processCameraProvider.bindToLifecycle(this, cameraSelector, imageCapture);
+        Log.e("TEST", "bindImageCapture SUCC");
+    }
+
+    void bindVideoCapture(){
+        CameraSelector cameraSelector = new CameraSelector.Builder()
+                .requireLensFacing(cameraFacing)
+                .build();
+        Recorder recorder = new Recorder.Builder()
+                .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
+                .build();
+        videoCapture = VideoCapture.withOutput(recorder);
+
+        processCameraProvider.bindToLifecycle(this, cameraSelector, videoCapture);
+
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        processCameraProvider.unbindAll();
+        if(processCameraProvider != null)
+            processCameraProvider.unbindAll();
     }
 }
