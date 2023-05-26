@@ -21,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.video.MediaStoreOutputOptions;
@@ -177,7 +178,10 @@ public class MainActivity extends AppCompatActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.e("TEST", "startButton onClick called");
                 if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    Log.e("TEST", "startButton onClick permission granted");
+                    processCameraProvider.unbindAll();
                     bindPreview();
                     bindImageCapture();
                 }
@@ -224,12 +228,15 @@ public class MainActivity extends AppCompatActivity {
                 //String filename = "photo.JPG";
                 //saveFile(filename);
 
-                saveImage();
+//                saveImage();
+
+                Log.e("TEST", "captureButton onClick called");
 
                 imageCapture.takePicture(ContextCompat.getMainExecutor(MainActivity.this),
                         new ImageCapture.OnImageCapturedCallback() {
                             @Override
                             public void onCaptureSuccess(@NonNull ImageProxy image) {
+                                Log.e("TEST", "takePicture onCaptureSuccess");
 
                                 @SuppressLint({"UnsafeExperimentalUsageError", "UnsafeOptInUsageError"})
                                 Image mediaImage = image.getImage();
@@ -252,6 +259,12 @@ public class MainActivity extends AppCompatActivity {
                                 //saveFile(filename);
                                 saveImage();
 
+                            }
+
+                            @Override
+                            public void onError(@NonNull ImageCaptureException exception) {
+                                super.onError(exception);
+                                exception.printStackTrace();
                             }
                         }
                 );
@@ -279,7 +292,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if(startButton != null)
+            startButton.performClick();
+    }
+
     public void captureVideo(){
+
+        if(videoCapture == null)
+        {
+            Recorder recorder = new Recorder.Builder()
+                    .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
+                    .build();
+            videoCapture = VideoCapture.withOutput(recorder);
+        }
 
         //recordButton.setImageResource(R.drawable.round_stop_circle_24);
         Recording recording1 = recording;
@@ -302,6 +330,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         recording = videoCapture.getOutput().prepareRecording(MainActivity.this, options).withAudioEnabled().start(ContextCompat.getMainExecutor(MainActivity.this), videoRecordEvent -> {
+
             if (videoRecordEvent instanceof VideoRecordEvent.Start) {
                 recordButton.setEnabled(true);
             } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
@@ -309,7 +338,8 @@ public class MainActivity extends AppCompatActivity {
                     String msg = "Video capture succeeded: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getOutputResults().getOutputUri();
                     Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
                 } else {
-                    recording.close();
+                    if(recording != null)
+                        recording.close();
                     recording = null;
                     String msg = "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError();
                     Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
@@ -320,31 +350,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startCamera(int cameraFacing) {
-        ListenableFuture<ProcessCameraProvider> processCameraProvider = ProcessCameraProvider.getInstance(MainActivity.this);
-
-        processCameraProvider.addListener(() -> {
-            try {
-                ProcessCameraProvider cameraProvider = processCameraProvider.get();
-                Preview preview = new Preview.Builder().build();
-                preview.setSurfaceProvider(previewView.getSurfaceProvider());
-
-                Recorder recorder = new Recorder.Builder()
-                        .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
-                        .build();
-                videoCapture = VideoCapture.withOutput(recorder);
-
-                cameraProvider.unbindAll();
-
-                CameraSelector cameraSelector = new CameraSelector.Builder()
-                        .requireLensFacing(cameraFacing).build();
-
-                Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture);
-
-                //   toggleFlash.setOnClickListener(view -> toggleFlash(camera));
-            } catch (ExecutionException | InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, ContextCompat.getMainExecutor(MainActivity.this));
+//        ListenableFuture<ProcessCameraProvider> processCameraProvider = ProcessCameraProvider.getInstance(MainActivity.this);
+//
+//        processCameraProvider.addListener(() -> {
+//            try {
+////                ProcessCameraProvider cameraProvider = processCameraProvider.get();
+////                Preview preview = new Preview.Builder().build();
+////                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+//
+//                Recorder recorder = new Recorder.Builder()
+//                        .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
+//                        .build();
+//                videoCapture = VideoCapture.withOutput(recorder);
+//
+////                cameraProvider.unbindAll();
+//
+////                CameraSelector cameraSelector = new CameraSelector.Builder()
+////                        .requireLensFacing(cameraFacing).build();
+////
+////                Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture);
+//
+//                //   toggleFlash.setOnClickListener(view -> toggleFlash(camera));
+//            } catch (ExecutionException | InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//        }, ContextCompat.getMainExecutor(MainActivity.this));
     }
 
 
@@ -452,6 +482,7 @@ public class MainActivity extends AppCompatActivity {
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
         processCameraProvider.bindToLifecycle(this, cameraSelector, preview);
+        Log.e("TEST", "bindPreview SUCC");
     }
 
     void bindImageCapture() {
@@ -462,6 +493,7 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         processCameraProvider.bindToLifecycle(this, cameraSelector, imageCapture);
+        Log.e("TEST", "bindImageCapture SUCC");
     }
 
     @Override
