@@ -203,7 +203,6 @@ public class MainActivity extends AppCompatActivity {
         reverseButton.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View v){
-                // Log.e("TEST", "TESTLOG 1 lensFacing "+lensFacing);
                 if(cameraFacing == CameraSelector.LENS_FACING_BACK){
                     cameraFacing = CameraSelector.LENS_FACING_FRONT;
                 }
@@ -211,7 +210,6 @@ public class MainActivity extends AppCompatActivity {
                     cameraFacing = CameraSelector.LENS_FACING_BACK;
                 }
 
-                // Log.e("TEST", "TESTLOG 2 lensFacing "+lensFacing);
                 processCameraProvider.unbindAll();
                 bindPreview();
                 bindImageCapture();
@@ -279,7 +277,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             startCamera(cameraFacing);
         }
-
     }
 
     public void captureVideo(){
@@ -317,7 +314,7 @@ public class MainActivity extends AppCompatActivity {
                     String msg = "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError();
                     Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
                 }
-                // recordButton.setImageResource(R.drawable.round_fiber_manual_record_24);
+               // recordButton.setImageResource(R.drawable.round_fiber_manual_record_24);
             }
         });
     }
