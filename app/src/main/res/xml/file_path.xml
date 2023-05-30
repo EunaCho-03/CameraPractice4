@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+    ANdroidManifest.xml 에서 android:resource="@xml/file_paths"/> 라고 파일 경로를 지정해줬음
+    이 앱이 접근할 수 있는 디렉토리인 Android/data/com.example.CameraPractice4/file의 하위 폴더 전체를 공유할 수 있음
+    -->
+    <external-path
+        name="my_images"
+        path="Android/data/com.example.camerapractice4/files/Pictures"/>
+</paths>
